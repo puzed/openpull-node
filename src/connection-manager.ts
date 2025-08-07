@@ -8,6 +8,7 @@
  */
 
 import { connect, getActiveWebRTCManager, sendLog } from './connection.js';
+import { bufferLog } from './log-buffer.js';
 import type { Connection, LogData } from './types.js';
 
 /**
@@ -60,26 +61,30 @@ function parseLogLine(line: string, defaultLevel: LogData['type'] = 'info'): Log
 let isForwarding = false;
 
 /**
- * Send log data through the active WebRTC connection, if available.
+ * Send log data through the active WebRTC connection AND always buffer it.
  *
- * Silently no-ops when no connection is active or when called during
- * forwarding (to prevent recursion).
+ * Silently no-ops when called during forwarding (to prevent recursion).
+ * Always buffers logs for 1 minute, regardless of connection state.
  */
 function sendLogData(logData: LogData): void {
   if (isForwarding) {
     return; // Prevent recursion
   }
   
+  // ALWAYS buffer every log for 1 minute
+  bufferLog(logData);
+  
   const manager = getActiveWebRTCManager();
   if (!manager) {
-    return; // Silently ignore if no connection
+    return; // No manager available, log is buffered
   }
 
+  // Try to send immediately if we have a manager
   try {
     isForwarding = true;
     sendLog(logData);
   } catch (_error) {
-    // Silently ignore send errors to avoid infinite loops
+    // If send fails, that's okay - log is already buffered
   } finally {
     isForwarding = false;
   }

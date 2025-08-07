@@ -34,6 +34,29 @@ function outputLog(logData: LogData): void {
 }
 
 /**
+ * Normalize logger arguments to support both (message, extra) and (extra) patterns.
+ * @internal
+ */
+function normalizeArgs(
+  message: string | Record<string, unknown>,
+  extra: Record<string, unknown>
+): { actualMessage: string; actualExtra: Record<string, unknown> } {
+  if (typeof message === 'string') {
+    return { actualMessage: message, actualExtra: extra };
+  } else {
+    // If first argument is an object, use it as extra and generate a default message
+    const messageFromObject = message.message as string || '';
+    const restOfObject = { ...message };
+    delete restOfObject.message;
+    
+    return {
+      actualMessage: messageFromObject,
+      actualExtra: { ...restOfObject, ...extra }
+    };
+  }
+}
+
+/**
  * Create a tracer instance for tracking related operations.
  * @internal
  */
@@ -43,16 +66,17 @@ function createTracer(
   traceFields: Record<string, unknown>
 ): Tracer {
   return {
-    span(message: string, extra: Record<string, unknown> = {}): Tracer {
+    span(message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): Tracer {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'trace',
-        message,
+        message: actualMessage,
         traceId,
         spanId: generateSpanId(),
         timestamp: new Date().toISOString(),
         ...defaultFields,
         ...traceFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
@@ -92,88 +116,95 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   const defaultFields = options.defaultFields ?? {};
 
   return {
-    info: (message: string, extra: Record<string, unknown> = {}): void => {
+    info: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): void => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'info',
-        message,
+        message: actualMessage,
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
     },
 
-    error: (message: string, extra: Record<string, unknown> = {}): void => {
+    error: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): void => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'error',
-        message,
+        message: actualMessage,
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
     },
 
-    debug: (message: string, extra: Record<string, unknown> = {}): void => {
+    debug: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): void => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'debug',
-        message,
+        message: actualMessage,
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
     },
 
-    warning: (message: string, extra: Record<string, unknown> = {}): void => {
+    warning: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): void => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'warning',
-        message,
+        message: actualMessage,
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
     },
 
-    warn: (message: string, extra: Record<string, unknown> = {}): void => {
+    warn: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): void => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const logData: LogData = {
         type: 'warning',
-        message,
+        message: actualMessage,
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
     },
 
-    trace: (message: string, extra: Record<string, unknown> = {}): Tracer => {
+    trace: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): Tracer => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const traceId = generateTraceId();
-      const tracer = createTracer(traceId, defaultFields, extra);
+      const tracer = createTracer(traceId, defaultFields, actualExtra);
       
       // Log the initial trace
       const logData: LogData = {
         type: 'trace',
-        message,
+        message: actualMessage,
         traceId,
         spanId: generateSpanId(),
         timestamp: new Date().toISOString(),
         ...defaultFields,
-        ...extra,
+        ...actualExtra,
       };
 
       outputLog(logData);
       return tracer;
     },
 
-    startTrace: (extra: Record<string, unknown> = {}): Tracer => {
+    startTrace: (message: string | Record<string, unknown>, extra: Record<string, unknown> = {}): Tracer => {
+      const { actualMessage, actualExtra } = normalizeArgs(message, extra);
       const traceId = generateTraceId();
-      return createTracer(traceId, defaultFields, extra);
+      return createTracer(traceId, defaultFields, actualExtra);
     },
   };
 }

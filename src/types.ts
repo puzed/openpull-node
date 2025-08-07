@@ -84,11 +84,11 @@ export interface ForwardOptions {
 export interface Tracer {
   /**
    * Record a span within the current trace.
-   * @param message Short description of the operation.
+   * @param message Short description of the operation, or an object with structured fields.
    * @param extra Additional structured fields merged into the span.
    * @returns The same tracer, enabling chaining.
    */
-  span: (message: string, extra?: Record<string, unknown>) => Tracer;
+  span: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => Tracer;
   /** Mark the end of the current trace. */
   finish: () => void;
 }
@@ -103,19 +103,19 @@ export interface Tracer {
  */
 export interface Logger {
   /** Log an informational message. */
-  info: (message: string, extra?: Record<string, unknown>) => void;
+  info: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => void;
   /** Log an error message. */
-  error: (message: string, extra?: Record<string, unknown>) => void;
+  error: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => void;
   /** Log a debug message. */
-  debug: (message: string, extra?: Record<string, unknown>) => void;
+  debug: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => void;
   /** Log a warning message. */
-  warning: (message: string, extra?: Record<string, unknown>) => void;
+  warning: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => void;
   /** Alias for `warning`. */
-  warn: (message: string, extra?: Record<string, unknown>) => void;
+  warn: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => void;
   /** Start a new trace and log its first span. */
-  trace: (message: string, extra?: Record<string, unknown>) => Tracer;
-  /** Start a new trace without logging an initial span. */
-  startTrace: (extra?: Record<string, unknown>) => Tracer;
+  trace: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => Tracer;
+  /** Start a new trace with a message or structured fields. */
+  startTrace: (message: string | Record<string, unknown>, extra?: Record<string, unknown>) => Tracer;
 }
 
 /**

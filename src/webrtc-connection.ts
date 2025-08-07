@@ -155,7 +155,6 @@ function setupDataChannel(
   rtcConnection.dataChannel = dataChannel;
 
   dataChannel.onOpen(() => {
-    console.log(`Data channel opened with ${rtcConnection.peerId}`);
     rtcConnection.isConnected = true;
     notifyConnectionChange(state, rtcConnection.peerId, true);
   });
@@ -190,7 +189,6 @@ function setupDataChannel(
   });
 
   dataChannel.onClosed(() => {
-    console.log(`Data channel closed with ${rtcConnection.peerId}`);
     rtcConnection.isConnected = false;
     notifyConnectionChange(state, rtcConnection.peerId, false);
   });
@@ -207,9 +205,6 @@ function initiatePeerConnection(
     return; // Already connecting/connected
   }
 
-  console.log(
-    `Initiating WebRTC connection to ${peerId} (${role}) as ${isInitiator ? 'initiator' : 'receiver'}`
-  );
 
   try {
     // Initialize node-datachannel
@@ -238,37 +233,26 @@ function initiatePeerConnection(
 
     // Set up peer connection event handlers
     peerConnection.onStateChange((connectionState: string) => {
-      console.log(`WebRTC state with ${peerId}: ${connectionState}`);
       if (connectionState === 'connected') {
-        console.log(`✅ WebRTC connection established with ${peerId}`);
         rtcConnection.isConnected = true;
         notifyConnectionChange(state, peerId, true);
       } else if (connectionState === 'disconnected' || connectionState === 'failed') {
-        console.log(`❌ WebRTC connection ${connectionState} with ${peerId}`);
         rtcConnection.isConnected = false;
         notifyConnectionChange(state, peerId, false);
-      } else {
-        console.log(`🔄 WebRTC state change with ${peerId}: ${connectionState}`);
       }
     });
 
     peerConnection.onGatheringStateChange((gatheringState: string) => {
-      console.log(`WebRTC gathering state with ${peerId}: ${gatheringState}`);
-      if (gatheringState === 'complete') {
-        console.log(`✅ ICE gathering completed for ${peerId}`);
-      }
+      // ICE gathering state changes - no logging needed
     });
 
     // Handle incoming data channels
     peerConnection.onDataChannel((dataChannel) => {
-      console.log(`Received data channel from ${peerId}`);
       setupDataChannel(state, rtcConnection, dataChannel);
     });
 
     // Set up signaling
     peerConnection.onLocalDescription((sdp: string, type: string) => {
-      console.log(`Sending ${type} to ${peerId}`);
-
       const messageType = type === 'offer' ? 'webrtc_offer' : 'webrtc_answer';
       const message: WebSocketMessage = {
         type: messageType as 'webrtc_offer' | 'webrtc_answer',
@@ -298,17 +282,10 @@ function initiatePeerConnection(
 
     // Create data channel and offer if we're the initiator
     if (isInitiator) {
-      console.log(`Creating data channel for peer ${peerId} as initiator`);
       const dataChannel = peerConnection.createDataChannel('logs', { unordered: false });
       setupDataChannel(state, rtcConnection, dataChannel);
-      console.log(
-        `Data channel created for peer ${peerId}, waiting for automatic offer generation`
-      );
-
       // The offer will be created automatically by node-datachannel when we have a data channel
       // The onLocalDescription callback will handle sending it
-    } else {
-      console.log(`Not creating data channel for peer ${peerId} as we are the receiver`);
     }
   } catch (error) {
     console.error(`Failed to create WebRTC connection to ${peerId}:`, error);
@@ -318,7 +295,6 @@ function initiatePeerConnection(
 
 /** Tear down all resources related to a disconnected peer. @internal */
 function handlePeerDisconnected(state: WebRTCManagerState, peerId: string): void {
-  console.log(`Peer disconnected: ${peerId}`);
 
   state.peers.delete(peerId);
 
@@ -348,8 +324,6 @@ function handlePeerDisconnected(state: WebRTCManagerState, peerId: string): void
     rtcConnection.isConnected = false;
     state.rtcConnections.delete(peerId);
     notifyConnectionChange(state, peerId, false);
-
-    console.log(`Cleaned up WebRTC connection for peer ${peerId}`);
   }
 }
 
@@ -589,7 +563,6 @@ function handleMessage(
 
 /** Handle the full peer list snapshot from the server. @internal */
 function handlePeerList(state: WebRTCManagerState, peers: Array<{ peerId: string; role: 'appender' | 'reader' }>): void {
-  console.log(`Discovered ${peers.length} peers`);
 
   state.peers.clear();
   peers.forEach((peer) => {
@@ -598,9 +571,6 @@ function handlePeerList(state: WebRTCManagerState, peers: Array<{ peerId: string
     if (shouldConnectToPeer(state.myRole, peer.role)) {
       // Determine who should be initiator: peer with smaller peerId initiates
       const shouldBeInitiator = Boolean(state.myPeerId && state.myPeerId < peer.peerId);
-      console.log(
-        `Connecting to existing peer ${peer.peerId}, shouldBeInitiator: ${shouldBeInitiator} (${state.myPeerId} vs ${peer.peerId})`
-      );
       initiatePeerConnection(state, peer.peerId, peer.role, shouldBeInitiator);
     }
   });
@@ -730,7 +700,6 @@ function handleWebRTCOffer(state: WebRTCManagerState, message: WebSocketMessage)
   }
 
   if (rtcConnection?.peerConnection && offer.sdp && offer.type) {
-    console.log(`Setting remote description for ${fromPeerId}: ${offer.type}`);
     try {
       // node-datachannel expects SDP string and type
       rtcConnection.peerConnection.setRemoteDescription(offer.sdp, offer.type);
@@ -751,7 +720,6 @@ function handleWebRTCAnswer(state: WebRTCManagerState, message: WebSocketMessage
 
   const rtcConnection = state.rtcConnections.get(fromPeerId);
   if (rtcConnection?.peerConnection && answer.sdp && answer.type) {
-    console.log(`Setting remote description for ${fromPeerId}: ${answer.type}`);
     try {
       // node-datachannel expects SDP string and type
       rtcConnection.peerConnection.setRemoteDescription(answer.sdp, answer.type);
@@ -770,15 +738,12 @@ function handleWebRTCIceCandidate(state: WebRTCManagerState, message: WebSocketM
 
   const rtcConnection = state.rtcConnections.get(fromPeerId);
   if (rtcConnection?.peerConnection && candidate.candidate && candidate.sdpMid) {
-    console.log(`Adding ICE candidate for ${fromPeerId}`);
     try {
       // node-datachannel expects candidate string and sdpMid
       rtcConnection.peerConnection.addRemoteCandidate(candidate.candidate, candidate.sdpMid);
     } catch (error) {
       console.error(`Failed to add ICE candidate for ${fromPeerId}:`, error);
     }
-  } else {
-    console.error(`No connection found or invalid ICE candidate for ${fromPeerId}`);
   }
 }
 
