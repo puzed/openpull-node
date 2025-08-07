@@ -1,0 +1,66 @@
+{
+  "name": "openpull",
+  "version": "1.3.1",
+  "description": "OpenPull Node.js library for streaming logs via WebRTC",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "openpull": "./bin/cli.ts"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "npm run build && node --watch dist/index.js",
+    "test": "node --experimental-strip-types --test src/test.ts",
+    "pretest": "npm run build",
+    "example": "node dist/example-new-api.js",
+    "prepublishOnly": "npm run build",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "tidy": "biome check --write ."
+  },
+  "dependencies": {
+    "node-datachannel": "^0.29.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.4",
+    "@types/node": "^24.2.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist/",
+    "bin/"
+  ],
+  "keywords": [
+    "openpull",
+    "logging",
+    "webrtc",
+    "streaming",
+    "stdout",
+    "tracing"
+  ],
+  "author": "OpenPull",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openpull/openpull.git",
+    "directory": "openpull-node"
+  },
+  "homepage": "https://openpull.com",
+  "bugs": {
+    "url": "https://github.com/openpull/openpull/issues"
+  }
+}
