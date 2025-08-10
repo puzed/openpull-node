@@ -51,6 +51,7 @@ export interface WebRTCManagerState {
   rtcConnections: Map<string, RTCConnection>;
   logHandlers: Set<(logData: LogData) => void>;
   connectionHandlers: Set<(peerId: string, connected: boolean) => void>;
+  pingInterval: NodeJS.Timeout | null;
   cleanupInterval: NodeJS.Timeout | null;
   reconnectionAttempts: number;
   maxReconnectionAttempts: number;
@@ -80,6 +81,7 @@ function createWebRTCManagerState(): WebRTCManagerState {
     rtcConnections: new Map(),
     logHandlers: new Set(),
     connectionHandlers: new Set(),
+    pingInterval: null,
     cleanupInterval: null,
     reconnectionAttempts: 0,
     maxReconnectionAttempts: 5,
