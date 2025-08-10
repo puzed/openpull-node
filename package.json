@@ -1,6 +1,6 @@
 {
   "name": "openpull",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "OpenPull Node.js library for streaming logs via WebRTC",
   "type": "module",
   "main": "./dist/index.js",
