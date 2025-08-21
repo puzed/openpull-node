@@ -10,6 +10,8 @@
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { createConnection } from '../dist/connection-manager.js';
+import { getActiveWebRTCManager } from '../dist/connection.js';
+import { getBufferSize } from '../dist/log-buffer.js';
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
@@ -127,13 +129,46 @@ async function main(): Promise<void> {
       process.exit(1);
     });
 
-    child.on('exit', (code, signal) => {
+    child.on('exit', async (code, signal) => {
       if (signal) {
         console.log(`[OpenPull] Child process killed with signal ${signal}`);
       } else {
         console.log(`[OpenPull] Child process exited with code ${code}`);
       }
       cleanup();
+
+      // If we have buffered logs but no readers yet, wait briefly to allow flush
+      const buffered = getBufferSize();
+      const manager = getActiveWebRTCManager();
+      const hasReaders = manager?.getConnectionCount?.() && manager.getConnectionCount() > 0;
+      const maxWaitMs = Number(process.env.OPENPULL_EXIT_DELAY_MS || process.env.OPENPULL_FLUSH_TIMEOUT_MS || 2500);
+
+      if (buffered > 0 && !hasReaders && manager) {
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const timeout = setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              resolve();
+            }
+          }, Math.max(0, maxWaitMs));
+
+          const unsubscribe = manager.onConnection?.((_peerId: string, connected: boolean) => {
+            if (connected && !resolved) {
+              // Give a tiny moment for buffered send to occur
+              setTimeout(() => {
+                if (!resolved) {
+                  resolved = true;
+                  clearTimeout(timeout);
+                  resolve();
+                }
+              }, 150);
+              if (typeof unsubscribe === 'function') unsubscribe();
+            }
+          });
+        });
+      }
+
       process.exit(code ?? 1);
     });
 
