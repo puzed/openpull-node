@@ -142,6 +142,7 @@ export interface Connection {
 export interface WebSocketMessage {
   type:
     | 'auth'
+    | 'auth_challenge'
     | 'auth_success'
     | 'error'
     | 'webrtc_offer'
@@ -155,7 +156,12 @@ export interface WebSocketMessage {
     | 'pong'
     | 'log';
   role?: 'appender' | 'reader';
-  key?: string;
+  // Zero-knowledge auth fields
+  proof?: string;
+  nonce?: string;
+  timestamp?: number;
+  algo?: 'hmac-sha256';
+  version?: 'v1';
   /** Default fields included with all logs for this session. */
   defaultFields?: Record<string, unknown>;
   /** Optional log payload when using log-level signaling. */

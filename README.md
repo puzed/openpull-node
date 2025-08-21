@@ -189,13 +189,15 @@ await connection.forward(process.stdout, process.stderr);
 await connection.forwardStreams(child.stdout, child.stderr);
 ```
 
+Note: The URL includes a key, but OpenPull uses a zero-knowledge handshake — the key never leaves your device.
+
 **Connection String Format:**
 ```
 openpull://role:key@publicToken.host:port/
 ```
 
 - `role`: Either `appender` (for sending logs) or `reader` (for receiving logs)
-- `key`: Authentication key derived from your session
+- `key`: Authentication key derived from your session (used only locally to compute the handshake proof)
 - `publicToken`: Session identifier
 - `host:port`: Signaling server address
 
