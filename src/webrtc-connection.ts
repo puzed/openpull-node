@@ -9,6 +9,7 @@
  */
 
 import * as nodeDataChannel from 'node-datachannel';
+import { createHmac } from 'crypto';
 import { WebSocket } from 'ws';
 import type {
   ConnectionInfo,
@@ -47,6 +48,8 @@ export interface WebRTCManagerState {
   signalingWs: WebSocket | null;
   myPeerId: string | null;
   myRole: 'appender' | 'reader' | null;
+  myPublicToken: string | null;
+  myKeyHex: string | null;
   peers: Map<string, PeerInfo>;
   rtcConnections: Map<string, RTCConnection>;
   logHandlers: Set<(logData: LogData) => void>;
@@ -55,6 +58,7 @@ export interface WebRTCManagerState {
   cleanupInterval: NodeJS.Timeout | null;
   reconnectionAttempts: number;
   maxReconnectionAttempts: number;
+  defaultFields?: Record<string, unknown>;
 }
 
 /**
@@ -77,6 +81,8 @@ function createWebRTCManagerState(): WebRTCManagerState {
     signalingWs: null,
     myPeerId: null,
     myRole: null,
+    myPublicToken: null,
+    myKeyHex: null,
     peers: new Map(),
     rtcConnections: new Map(),
     logHandlers: new Set(),
@@ -382,6 +388,14 @@ export function WebRTCManager(): WebRTCManager {
     async connect(connectionString: string, defaultFields?: Record<string, unknown>): Promise<void> {
       const { host, role, key, publicToken } = parseConnectionString(connectionString);
       state.myRole = role;
+      state.myPublicToken = publicToken || null;
+      state.myKeyHex = key;
+      // Respect exactOptionalPropertyTypes: delete property when undefined
+      if (defaultFields === undefined) {
+        delete (state as { defaultFields?: Record<string, unknown> }).defaultFields;
+      } else {
+        state.defaultFields = defaultFields;
+      }
 
       return new Promise((resolve, reject) => {
         try {
@@ -398,19 +412,7 @@ export function WebRTCManager(): WebRTCManager {
           state.signalingWs = new WebSocket(wsUrl, wsOptions);
 
           state.signalingWs.on('open', () => {
-            // Send authentication message with defaultFields
-            const authMessage: WebSocketMessage = {
-              type: 'auth',
-              role,
-              key,
-            };
-
-            // Include defaultFields if provided
-            if (defaultFields && Object.keys(defaultFields).length > 0) {
-              authMessage.defaultFields = defaultFields;
-            }
-
-            sendMessage(state, authMessage);
+            // Wait for auth_challenge before sending proof
           });
 
           state.signalingWs.on('message', (data: Buffer) => {
@@ -518,6 +520,25 @@ function handleMessage(
   reject?: (reason: Error) => void
 ): void {
   switch (message.type) {
+    case 'auth_challenge': {
+      const { nonce, timestamp } = message as unknown as { nonce: string; timestamp: number };
+      if (!state.myRole || !state.myPublicToken || !state.myKeyHex) {
+        console.error('Missing connection details for auth proof');
+        return;
+      }
+      const payload = `openpull-auth|v1|${state.myPublicToken}|${state.myRole}|${nonce}|${timestamp}`;
+      const proof = createHmac('sha256', Buffer.from(state.myKeyHex, 'hex')).update(payload).digest('hex');
+      const authMessage: WebSocketMessage = {
+        type: 'auth',
+        role: state.myRole,
+        proof,
+      };
+      if (state.defaultFields && Object.keys(state.defaultFields).length > 0) {
+        authMessage.defaultFields = state.defaultFields;
+      }
+      sendMessage(state, authMessage);
+      break;
+    }
     case 'auth_success':
       state.myPeerId = message.peerId!;
       console.log(`Authenticated as ${state.myRole} with peerId: ${state.myPeerId}`);
