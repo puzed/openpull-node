@@ -157,11 +157,16 @@ export interface WebSocketMessage {
     | 'log';
   role?: 'appender' | 'reader';
   // Zero-knowledge auth fields
+  // v1 (HMAC)
   proof?: string;
+  // v2 (Ed25519)
+  pubkey?: string;
+  sig?: string;
+  // challenge + metadata
   nonce?: string;
   timestamp?: number;
-  algo?: 'hmac-sha256';
-  version?: 'v1';
+  algo?: 'hmac-sha256' | 'ed25519';
+  version?: 'v1' | 'v2';
   /** Default fields included with all logs for this session. */
   defaultFields?: Record<string, unknown>;
   /** Optional log payload when using log-level signaling. */
