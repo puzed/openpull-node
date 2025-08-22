@@ -10,6 +10,14 @@
 
 import * as nodeDataChannel from 'node-datachannel';
 import { createHmac } from 'crypto';
+import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha512';
+// Ensure noble-ed25519 hashing is configured
+// @ts-ignore
+if (!ed.etc.sha512Sync) {
+  // @ts-ignore
+  ed.etc.sha512Sync = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
+}
 import { WebSocket } from 'ws';
 import type {
   ConnectionInfo,
@@ -513,26 +521,45 @@ export function WebRTCManager(): WebRTCManager {
 
 // Helper functions for message handling
 /** Dispatch signaling messages from the server. @internal */
-function handleMessage(
+async function handleMessage(
   state: WebRTCManagerState,
   message: WebSocketMessage,
   resolve?: (value: undefined) => void,
   reject?: (reason: Error) => void
-): void {
+): Promise<void> {
   switch (message.type) {
     case 'auth_challenge': {
-      const { nonce, timestamp } = message as unknown as { nonce: string; timestamp: number };
+      const { nonce, timestamp, version, algo } = message as unknown as {
+        nonce: string;
+        timestamp: number;
+        version?: 'v1' | 'v2';
+        algo?: 'hmac-sha256' | 'ed25519';
+      };
       if (!state.myRole || !state.myPublicToken || !state.myKeyHex) {
         console.error('Missing connection details for auth proof');
         return;
       }
-      const payload = `openpull-auth|v1|${state.myPublicToken}|${state.myRole}|${nonce}|${timestamp}`;
-      const proof = createHmac('sha256', Buffer.from(state.myKeyHex, 'hex')).update(payload).digest('hex');
-      const authMessage: WebSocketMessage = {
-        type: 'auth',
-        role: state.myRole,
-        proof,
-      };
+      const v: 'v1' | 'v2' = version || (algo === 'ed25519' ? 'v2' : 'v1');
+      const payload = `openpull-auth|${v}|${state.myPublicToken}|${state.myRole}|${nonce}|${timestamp}`;
+
+      let authMessage: WebSocketMessage;
+      if (v === 'v2' || algo === 'ed25519') {
+        try {
+          const enc = new TextEncoder();
+          const pub = await ed.getPublicKey(state.myKeyHex);
+          const sig = await ed.sign(enc.encode(payload), state.myKeyHex);
+          const toHex = (u8: Uint8Array) => Buffer.from(u8).toString('hex');
+          authMessage = { type: 'auth', role: state.myRole, version: 'v2', pubkey: toHex(pub), sig: toHex(sig) };
+        } catch (e) {
+          console.error('Failed to sign v2 auth payload:', e);
+          return;
+        }
+      } else {
+        const proof = createHmac('sha256', Buffer.from(state.myKeyHex, 'hex'))
+          .update(payload)
+          .digest('hex');
+        authMessage = { type: 'auth', role: state.myRole, proof, version: 'v1', algo: 'hmac-sha256' };
+      }
       if (state.defaultFields && Object.keys(state.defaultFields).length > 0) {
         authMessage.defaultFields = state.defaultFields;
       }
